@@ -1,0 +1,22 @@
+{
+  "name": "taskboard",
+  "version": "0.1.0",
+  "description": "A live Kanban board of the agent's tasks (TodoWrite and Task tools) in a pane beside the transcript",
+  "author": {
+    "name": "Manas Nilorout"
+  },
+  "userConfig": {
+    "showFilePaths": {
+      "type": "boolean",
+      "title": "Show file paths in activity",
+      "description": "Show the file a Read, Edit or Write touched beside the tool name (stored in the board file). Off: tool names only.",
+      "default": false
+    },
+    "showAgentTasks": {
+      "type": "boolean",
+      "title": "Show subagent tasks in labels",
+      "description": "Label subagent cards with the Agent call's short task description (stored in the board file). Off: the agent type and a short id only.",
+      "default": false
+    }
+  }
+}
