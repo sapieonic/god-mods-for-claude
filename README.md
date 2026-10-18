@@ -33,6 +33,7 @@ Each item should live in its own folder with a short README describing what it d
 | Name | Kind | What it does |
 | --- | --- | --- |
 | [taskboard](mods/taskboard/README.md) | mod | A live Kanban board of the agent's tasks in a pane beside the transcript |
+| [token-weather](mods/token-weather/README.md) | mod | A live forecast of the context window above the prompt. Copied from [anthropics/claude-code-playground](https://github.com/anthropics/claude-code-playground) (Apache-2.0, see its `UPSTREAM.md`) |
 
 ## Install
 

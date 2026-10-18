@@ -1,12 +1,19 @@
 {
   "name": "god-mods-for-claude",
   "description": "Personal Claude Code plugins and mods",
-  "owner": { "name": "Manas Nilorout" },
+  "owner": {
+    "name": "Manas Nilorout"
+  },
   "plugins": [
     {
       "name": "taskboard",
       "source": "./mods/taskboard",
       "description": "A live Kanban board of the agent's tasks in a pane beside the transcript"
+    },
+    {
+      "name": "token-weather",
+      "source": "./mods/token-weather",
+      "description": "A live forecast of the context window above the prompt: weather icon, fill percentage, and a chart of the last turns"
     }
   ]
 }
