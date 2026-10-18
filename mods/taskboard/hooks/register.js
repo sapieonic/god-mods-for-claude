@@ -15,7 +15,11 @@ const TICK_MS = 15_000
 const OTHERS_MS = 10_000
 
 // The tools whose calls carry the task list. Everything else is "activity".
-const TASK_TOOLS = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet'])
+// The two `ccd_turn` tools are the Claude desktop app's task list (its Code tab
+// shows it under each message), used there in place of TodoWrite.
+const PLAN_TOOL = 'mcp__ccd_turn__update_plan'
+const WRAP_UP_TOOL = 'mcp__ccd_turn__wrap_up'
+const TASK_TOOLS = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', PLAN_TOOL, WRAP_UP_TOOL])
 // The one argument shown beside a tool's name, and only with showFilePaths on.
 const PATH_ARG = { Read: 'file_path', Edit: 'file_path', Write: 'file_path', NotebookEdit: 'notebook_path' }
 
@@ -65,6 +69,9 @@ function targetOf(e) {
 //   TaskUpdate e.taskId, e.status, e.subject  pending -> Backlog, in_progress -> In Progress,
 //                                             completed -> Done, deleted -> removed
 //   TaskList   result.tasks[{ id, status }]   reconciles cards it lists
+//   update_plan e.items[{ content, status }]  (desktop app) whole plan, like TodoWrite;
+//              or e.advance / e.done[n] / e.start n: step moves within the plan
+//   wrap_up    -                             (desktop app) the step in progress -> Done
 //   any other  -                             latest activity of the loop's active cards
 //
 // Blocked: a call that errors or is denied moves the loop's In Progress cards
@@ -92,6 +99,12 @@ function observe($, e, ran) {
       if (!isFailed) board.applyTaskList(ran.result?.tasks, agent, at)
       break
     case 'TaskGet':
+      break
+    case PLAN_TOOL:
+      if (!isFailed) board.applyPlan({ items: e.items, advance: e.advance, done: e.done, start: e.start }, agent, at)
+      break
+    case WRAP_UP_TOOL:
+      if (!isFailed) board.completePlan(agent, at)
       break
     default:
       board.recordActivity(agent, { tool: String(e.tool), target: targetOf(e), at, isError: isFailed || undefined })

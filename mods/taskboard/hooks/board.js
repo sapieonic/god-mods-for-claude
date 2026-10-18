@@ -184,6 +184,58 @@ export function applyTaskList(list, agent, at) {
   }
 }
 
+/**
+ * The desktop app's own task list, `mcp__ccd_turn__update_plan`. Its input is
+ * one of: `items` [{ content, status }] (the whole plan, in order), `advance`
+ * (complete the in-progress step, start the next pending one), or `done`
+ * [n] / `start` n (1-based step numbers). Statuses map onto columns as
+ * TodoWrite's do. The current plan of a loop is the cards of its latest
+ * `items` call, so `advance` and the step numbers survive a reload.
+ */
+export function applyPlan(input, agent, at) {
+  if (Array.isArray(input.items)) {
+    const planId = at
+    input.items.forEach((item, index) => {
+      if (typeof item?.content !== 'string' || STATUS_TO_COLUMN[item.status] === undefined) return
+      const key = `plan:${agent}:${clean(item.content)}`
+      let task = tasks.get(key)
+      if (task === undefined) {
+        task = add(key, { title: item.content, column: STATUS_TO_COLUMN[item.status], status: item.status, agent, source: 'plan' }, at, `plan: ${item.status}`)
+      } else {
+        setStatus(task, item.status, at, `plan: ${item.status}`)
+      }
+      task.planId = planId
+      task.planIndex = index
+    })
+    version += 1
+    return
+  }
+  const plan = currentPlan(agent)
+  const set = (task, status) => setStatus(task, status, at, `plan: ${status}`)
+  if (input.advance === true) {
+    const current = plan.findIndex(t => t.status === 'in_progress')
+    if (current >= 0) set(plan[current], 'completed')
+    const following = plan.findIndex((t, i) => i > current && t.status === 'pending')
+    if (following >= 0) set(plan[following], 'in_progress')
+  }
+  for (const n of Array.isArray(input.done) ? input.done : []) if (plan[n - 1]) set(plan[n - 1], 'completed')
+  if (typeof input.start === 'number' && plan[input.start - 1]) set(plan[input.start - 1], 'in_progress')
+}
+
+/** `mcp__ccd_turn__wrap_up` checks off the plan's step in progress. */
+export function completePlan(agent, at) {
+  for (const task of currentPlan(agent)) {
+    if (task.status === 'in_progress') setStatus(task, 'completed', at, 'plan: wrapped up')
+  }
+}
+
+function currentPlan(agent) {
+  const mine = [...tasks.values()].filter(t => t.source === 'plan' && t.agent === agent && typeof t.planId === 'number')
+  if (mine.length === 0) return []
+  const latest = Math.max(...mine.map(t => t.planId))
+  return mine.filter(t => t.planId === latest).sort((a, b) => a.planIndex - b.planIndex)
+}
+
 /** Any other tool call: becomes the latest activity of the loop's active tasks. */
 export function recordActivity(agent, activity) {
   for (const task of tasks.values()) {
@@ -267,7 +319,9 @@ export function checkedTask(task) {
     since: task.since,
     agent: task.agent,
     owner: typeof task.owner === 'string' ? clean(task.owner) : undefined,
-    source: task.source === 'task' ? 'task' : 'todo',
+    source: task.source === 'task' || task.source === 'plan' ? task.source : 'todo',
+    planId: typeof task.planId === 'number' ? task.planId : undefined,
+    planIndex: typeof task.planIndex === 'number' ? task.planIndex : undefined,
     activity,
     history: Array.isArray(task.history) ? task.history.filter(isMove).slice(-MAX_HISTORY) : [],
   }

@@ -369,3 +369,63 @@ describe('the fixes from review', () => {
     expect(await board($)).toContain('Grep  [0s · Explore ag-1: find callers · Edit src/app.ts]')
   })
 })
+
+describe('the desktop app task list (ccd_turn)', () => {
+  const PLAN = 'mcp__ccd_turn__update_plan'
+  const plan = (statuses: string[]) =>
+    ['Look around', 'Make the change', 'Run the tests'].map((content, i) => ({ content, status: statuses[i] }))
+
+  test('update_plan items, advance, done/start and wrap_up move the cards', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await $.tool.call({ tool: PLAN, items: plan(['in_progress', 'pending', 'pending']), scope: 'first_task' } as never)
+    let text = await board($)
+    expect(column(text, 'In Progress')).toEqual(['Look around'])
+    expect(column(text, 'Backlog')).toEqual(['Make the change', 'Run the tests'])
+
+    await $.tool.call({ tool: 'Read', file_path: '/repo/a' } as never)
+    expect(await board($)).toContain('Look around  [0s · Read]')
+
+    await $.tool.call({ tool: PLAN, advance: true } as never)
+    text = await board($)
+    expect(column(text, 'Done')).toEqual(['Look around'])
+    expect(column(text, 'In Progress')).toEqual(['Make the change'])
+
+    // A failing call blocks the step; the plan tool itself never unblocks it.
+    w.next('Edit', { result: 'x', text: 'boom', isError: true })
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/a', old_string: 'a', new_string: 'b' } as never)
+    expect(column(await board($), 'Blocked')).toEqual(['Make the change'])
+    await $.tool.call({ tool: 'Edit', file_path: '/repo/a', old_string: 'a', new_string: 'b' } as never)
+
+    await $.tool.call({ tool: PLAN, done: [2], start: 3 } as never)
+    text = await board($)
+    expect(column(text, 'Done')).toEqual(['Look around', 'Make the change'])
+    expect(column(text, 'In Progress')).toEqual(['Run the tests'])
+
+    await $.tool.call({ tool: 'mcp__ccd_turn__wrap_up', recap: 'done' } as never)
+    text = await board($)
+    expect(column(text, 'Done')).toEqual(['Look around', 'Make the change', 'Run the tests'])
+
+    // A new plan adds its own cards and leaves the finished ones in Done.
+    await $.tool.call({ tool: PLAN, items: [{ content: 'Next thing', status: 'in_progress' }], scope: 'new_task' } as never)
+    await $.tool.call({ tool: PLAN, advance: true } as never)
+    expect(column(await board($), 'Done')).toEqual(['Look around', 'Make the change', 'Run the tests', 'Next thing'])
+  })
+
+  test('advance still works after a reload, from the saved plan', async ($, on) => {
+    const files = new Map<string, string>()
+    const card = (key: string, title: string, column: string, status: string, planIndex: number) => ({
+      key, title, column, status, since: 1, agent: 'main', source: 'plan', activity: null, history: [], planId: 5, planIndex,
+    })
+    files.set(FILE, JSON.stringify({ version: 1, sessionId: 'sess-1', savedAt: 1, agents: {}, tasks: [
+      card('plan:main:A', 'A', 'progress', 'in_progress', 0),
+      card('plan:main:B', 'B', 'backlog', 'pending', 1),
+    ] }))
+    world(on, { files })
+    await start($)
+    await $.tool.call({ tool: 'mcp__ccd_turn__update_plan', advance: true } as never)
+    const text = await board($)
+    expect(column(text, 'Done')).toEqual(['A'])
+    expect(column(text, 'In Progress')).toEqual(['B'])
+  })
+})

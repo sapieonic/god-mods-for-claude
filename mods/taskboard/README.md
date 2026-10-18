@@ -6,6 +6,9 @@ A Claude Code mod that shows the agent's tasks as a Kanban board in a pane besid
 
 - **Tracks tasks** from `TodoWrite` and the task tools (`TaskCreate`, `TaskUpdate`, `TaskList`):
   `pending` → Backlog, `in_progress` → In Progress, `completed` → Done (`deleted` removes the card).
+- **In the Claude desktop app** too, where the agent keeps its plan with the app's own task list
+  (`mcp__ccd_turn__update_plan`) instead of `TodoWrite`: each step is a card, `advance`, `done` and `start`
+  move them, and the closing `mcp__ccd_turn__wrap_up` moves the step in progress to Done.
 - **Blocked**: when a tool call errors or is denied, the In Progress cards of that agent's loop move to
   Blocked. An interrupted turn (Esc) or one an API error ends does the same. The next call in that loop
   that succeeds moves them back, and so does a new status from the agent.
