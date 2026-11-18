@@ -3,8 +3,8 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Stats, Step } from '../types'
 import {
-  addStep, allTokens, barsSvg, cacheHit, emptyStats, fmt, fmtMs, gaugeSvg,
-  genMs, scaleFor, speedOf, textGauge,
+  addStep, allTokens, barsSvg, cacheHit, cacheTheme, emptyStats, fmt, fmtMs, gaugeSvg,
+  genMs, scaleFor, speedOf, textGauge, ZONE_THEME, zoneOf,
 } from './meter'
 
 // The strip above the prompt holds the speedometer; Details there opens this
@@ -167,22 +167,23 @@ export const register: Register = on => {
     return { isLive, value, last, max: scaleFor(value, st.peak) }
   }
 
-  /** Everything after the speed, as one line. */
-  function details(st: Stats): string {
+  /** Everything after the speed: a dim label and a value in its own colour. */
+  function segments(st: Stats): { label: string; value: string; color: string }[] {
     const { last } = reading(st)
     const hit = cacheHit(st.session)
-    return [
-      `peak ${st.peak}`,
-      hit === null ? null : `cache ${hit}%`,
-      last ? `step ${fmt(last.output)} out` : null,
-      st.turn.steps > 0 ? `turn ${st.turn.steps} ${st.turn.steps === 1 ? 'step' : 'steps'}` : null,
-      `Σ ${fmt(allTokens(st.session))}`,
-    ].filter(Boolean).join(' · ')
+    const all: ({ label: string; value: string; color: string } | null)[] = [
+      { label: 'peak', value: String(st.peak), color: 'warning' },
+      hit === null ? null : { label: 'cache', value: `${hit}%`, color: cacheTheme(hit) },
+      last ? { label: 'step', value: `${fmt(last.output)} out`, color: 'suggestion' } : null,
+      st.turn.steps > 0 ? { label: 'turn', value: `${st.turn.steps} ${st.turn.steps === 1 ? 'step' : 'steps'}`, color: 'merged' } : null,
+      { label: 'Σ', value: fmt(allTokens(st.session)), color: 'claude' },
+    ]
+    return all.filter(s => s !== null)
   }
 
   function summary(st: Stats): string {
     const { value, max } = reading(st)
-    return `${textGauge(value, max)} ${value} tok/s · ${details(st)}`
+    return [`${textGauge(value, max)} ${value} tok/s`, ...segments(st).map(s => `${s.label} ${s.value}`)].join(' · ')
   }
 
   // The strip above the prompt: a small gauge and one line on the apps, the
@@ -193,20 +194,36 @@ export const register: Register = on => {
     if (st.session.steps === 0 || (await read($, isHidden))) return next(e)
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
+    const { isLive, value, max } = reading(st)
+    const speedColor = ZONE_THEME[zoneOf(value, max)]
+    const parts = segments(st).flatMap(s => [
+      <Text dimColor>·</Text>,
+      <Box flexDirection="row">
+        <Text dimColor>{s.label} </Text>
+        <Text color={s.color} tabular>{s.value}</Text>
+      </Box>,
+    ])
+    const speed = (
+      <Box flexDirection="row">
+        <Text color={speedColor} weight="semibold" bold tabular>{value}</Text>
+        <Text dimColor> tok/s</Text>
+      </Box>
+    )
     if (e.surface === 'terminal' || !('Svg' in els)) {
       return (
-        <Box justifyContent="flex-end">
-          <Text dimColor>{summary(st)}</Text>
+        <Box flexDirection="row" justifyContent="flex-end" gap={1}>
+          <Text color={speedColor}>{textGauge(value, max)}</Text>
+          {speed}
+          {parts}
         </Box>
       )
     }
     const { Svg } = els
-    const { isLive, value, max } = reading(st)
     return (
       <Box flexDirection="row" alignItems="center" gap={1} paddingX={1}>
         <Svg source={gaugeSvg(value, max, st.peak, isLive)} alt={`${value} tokens per second`} width={36} height={20} />
-        <Text weight="medium" tabular>{value} tok/s</Text>
-        <Text dimColor tabular>{details(st)}</Text>
+        {speed}
+        {parts}
         <Button key="details" label={isPaneOpen ? 'Hide details' : 'Details'} plain onPress={() => togglePane($)} />
       </Box>
     )

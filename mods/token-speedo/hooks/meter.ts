@@ -81,12 +81,28 @@ export function scaleFor(...speeds: number[]): number {
 
 // Fixed hex colours: an Svg is drawn as an image, so theme variables don't
 // reach it. Mid-tone stops read on both light and dark backgrounds.
-const TRACK = '#888780'
 const FILL = '#1D9E75'
-const IDLE = '#5F5E5A'
+const HUB = '#5F5E5A'
 const NEEDLE = '#D85A30'
 const PEAK = '#BA7517'
 const BAR = '#5DCAA5'
+
+// The gauge's three zones, slow to fast: coral, amber, green. Each number in
+// the strip takes the theme colour of the same meaning (`zoneTheme`), so the
+// text follows light and dark mode while the drawing keeps fixed hex.
+export type Zone = 'slow' | 'steady' | 'fast'
+const ZONE_HEX: Record<Zone, string> = { slow: '#D85A30', steady: '#EF9F27', fast: '#1D9E75' }
+export const ZONE_THEME = { slow: 'error', steady: 'warning', fast: 'success' } as const
+
+export function zoneOf(value: number, max: number): Zone {
+  const f = max > 0 ? value / max : 0
+  return f < 1 / 3 ? 'slow' : f < 2 / 3 ? 'steady' : 'fast'
+}
+
+/** Cache hit colour: most of the input from the cache is good. */
+export function cacheTheme(percent: number) {
+  return percent >= 80 ? 'success' : percent >= 50 ? 'warning' : 'error'
+}
 
 function point(fraction: number, r: number): [number, number] {
   const angle = Math.PI * (1 - Math.min(1, Math.max(0, fraction)))
@@ -95,17 +111,24 @@ function point(fraction: number, r: number): [number, number] {
 
 const n1 = (x: number) => x.toFixed(1)
 
+function arc(from: number, to: number): string {
+  const [x1, y1] = point(from, 80)
+  const [x2, y2] = point(to, 80)
+  return `M${n1(x1)} ${n1(y1)} A80 80 0 0 1 ${n1(x2)} ${n1(y2)}`
+}
+
 /** A half-circle gauge, 200×112 in its own units; nothing in it is text. */
 export function gaugeSvg(value: number, max: number, peak: number, isLive: boolean): string {
   const f = value / max
-  const [ax, ay] = point(f, 80)
   const [nx, ny] = point(f, 66)
-  const parts = [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 112">`,
-    `<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="${TRACK}" stroke-opacity="0.35" stroke-width="12" stroke-linecap="round"/>`,
-  ]
+  const parts = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 112">`]
+  // The track: the three zones, faint.
+  ;(['slow', 'steady', 'fast'] as const).forEach((zone, i) => {
+    parts.push(`<path d="${arc(i / 3, (i + 1) / 3)}" fill="none" stroke="${ZONE_HEX[zone]}" stroke-opacity="0.28" stroke-width="12"/>`)
+  })
+  // The fill, in the colour of the zone the needle is in; softer when idle.
   if (f > 0.005) {
-    parts.push(`<path d="M20 100 A80 80 0 0 1 ${n1(ax)} ${n1(ay)}" fill="none" stroke="${isLive ? FILL : IDLE}" stroke-width="12" stroke-linecap="round"/>`)
+    parts.push(`<path d="${arc(0, f)}" fill="none" stroke="${ZONE_HEX[zoneOf(value, max)]}" stroke-opacity="${isLive ? 1 : 0.7}" stroke-width="12" stroke-linecap="round"/>`)
   }
   if (peak > 0) {
     const [px, py] = point(peak / max, 80)
@@ -113,7 +136,7 @@ export function gaugeSvg(value: number, max: number, peak: number, isLive: boole
   }
   parts.push(
     `<line x1="100" y1="100" x2="${n1(nx)}" y2="${n1(ny)}" stroke="${NEEDLE}" stroke-width="4" stroke-linecap="round"/>`,
-    `<circle cx="100" cy="100" r="7" fill="${IDLE}"/>`,
+    `<circle cx="100" cy="100" r="7" fill="${HUB}"/>`,
     `</svg>`,
   )
   return parts.join('')

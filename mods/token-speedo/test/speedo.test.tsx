@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { cacheHit, fmt, gaugeSvg, scaleFor, speedOf, textGauge } from '../hooks/meter'
+import { cacheHit, cacheTheme, fmt, gaugeSvg, scaleFor, speedOf, textGauge, zoneOf } from '../hooks/meter'
 
 const pane = (placement: 'widget' | 'dock') => ({
   plugin: 'token-speedo',
@@ -76,8 +76,9 @@ describe('the meter', () => {
 
     const band = await $.ui.mount({ ...BAND, surface: 'desktop' } as never)
     expect(await band.find({ type: 'Svg' })).toBeTruthy()
-    expect((await band.find({ type: 'Text', text: /tok\/s$/ }))?.text).toBe('100 tok/s')
-    expect((await band.find({ type: 'Text', text: /^peak/ }))?.text).toBe('peak 100 · cache 90% · step 200 out · turn 1 step · Σ 1.2k')
+    for (const words of ['100', 'tok/s', 'peak', 'cache', '90%', 'step', '200 out', 'turn', '1 step', 'Σ', '1.2k']) {
+      expect((await band.find({ type: 'Text', text: words }))?.text?.trim()).toBe(words)
+    }
     await band.unmount()
   })
 
@@ -145,7 +146,9 @@ describe('the meter', () => {
     await step($, w.clock)
 
     const ui = await $.ui.mount({ ...BAND, surface: 'terminal' } as never)
-    expect((await ui.find({ type: 'Text', text: /tok\/s/ }))?.text).toBe('◜▰▰▰▰▰▱▱▱▱▱◝ 100 tok/s · peak 100 · cache 90% · step 200 out · turn 1 step · Σ 1.2k')
+    expect((await ui.find({ type: 'Text', text: '◜▰▰▰▰▰▱▱▱▱▱◝' }))?.text).toBe('◜▰▰▰▰▰▱▱▱▱▱◝')
+    expect((await ui.find({ type: 'Text', text: '90%' }))?.text).toBe('90%')
+    expect(await ui.find({ type: 'Svg' })).toBeFalsy()
     await ui.unmount()
   })
 
@@ -170,10 +173,12 @@ describe('the sums', () => {
     expect(speedOf(5, 50)).toBe(0)
     expect([scaleFor(78, 112), scaleFor(10), scaleFor(500)]).toEqual([200, 100, 800])
     expect(textGauge(50, 100)).toBe('◜▰▰▰▰▰▱▱▱▱▱◝')
+    expect([zoneOf(10, 100), zoneOf(50, 100), zoneOf(90, 100)]).toEqual(['slow', 'steady', 'fast'])
+    expect([cacheTheme(95), cacheTheme(60), cacheTheme(10)]).toEqual(['success', 'warning', 'error'])
   })
 
   test('the gauge draws no fill arc at zero and one at speed', () => {
-    expect(gaugeSvg(0, 100, 0, false)).not.toContain('stroke="#5F5E5A"')
+    expect(gaugeSvg(0, 100, 0, false)).not.toContain('stroke-width="12" stroke-linecap="round"')
     expect(gaugeSvg(50, 100, 80, true)).toContain('A80 80 0 0 1 100.0 20.0')
   })
 })
