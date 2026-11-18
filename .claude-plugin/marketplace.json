@@ -14,6 +14,11 @@
       "name": "token-weather",
       "source": "./mods/token-weather",
       "description": "A live forecast of the context window above the prompt: weather icon, fill percentage, and a chart of the last turns"
+    },
+    {
+      "name": "token-speedo",
+      "source": "./mods/token-speedo",
+      "description": "A token speedometer above the prompt: live speed, cache hit, step, turn and session counts, with a docked pane for detail"
     }
   ]
 }

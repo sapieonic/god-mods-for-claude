@@ -1,0 +1,7 @@
+{
+  "name": "token-speedo",
+  "version": "0.1.0",
+  "description": "A speedometer of token speed in the chat's bottom-right corner, with cache hit, step, turn and session counts",
+  "author": { "name": "Manas Nilorout" },
+  "types": "./types/index.d.ts"
+}
