@@ -38,7 +38,7 @@ let showAgentTasks = false
 // Whether the terminal docks panes beside the transcript: null until a
 // render or a command says. Only then does the board open by itself.
 let isFullscreen = null
-// Set by a /clear or /resume: the next turn or /board reads the new session id.
+// Set by a /clear or /resume: /board reads the new session id before the next turn does.
 let needsRebind = false
 
 // Task times come from Date.now(), read synchronously in the tool.call hook so
@@ -227,7 +227,7 @@ export function register(on, options) {
 
   // /clear, /resume and /branch end this conversation without a new
   // session.start: save, empty the board, and bind to the next session's id
-  // when its classic SessionStart arrives.
+  // at the next turn.start (or /board).
   on('session.end', async ($, e, next) => {
     await saveNow($)
     if (e.reason === 'clear' || e.reason === 'resume') {
@@ -240,15 +240,13 @@ export function register(on, options) {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // Where an organization manages Claude Code this classic event skips
-  // installed plugins; the turn.start below covers that case.
-  on('classic.SessionStart', async ($, e, next) => {
-    if (sessionId !== '') await rebind($, e.session_id)
-    return next(e)
-  }).catch(($, e, next) => next(e))
-
+  // No classic.SessionStart hook: where an organization manages Claude Code,
+  // a built-in plugin runs that event first and passes it on past installed
+  // plugins, so the hook never ran and the engine flagged it every session.
+  // Each turn checks the session id instead; rebind does nothing if it is the
+  // same, so this also catches a /branch, which sets no needsRebind.
   on('turn.start', async ($, e, next) => {
-    if (needsRebind) await rebind($, await $.session.id())
+    if (sessionId !== '') await rebind($, await $.session.id())
     return next(e)
   }).catch(($, e, next) => next(e))
 
