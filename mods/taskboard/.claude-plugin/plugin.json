@@ -1,6 +1,6 @@
 {
   "name": "taskboard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A live Kanban board of the agent's tasks (TodoWrite and Task tools) in a pane beside the transcript",
   "author": {
     "name": "Manas Nilorout"

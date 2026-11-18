@@ -311,6 +311,31 @@ describe('the fixes from review', () => {
     expect(JSON.parse(w.files.get('/home/t/.claude/taskboard/sess-2.json') ?? '{}').tasks.map((t: any) => t.title)).toEqual(['New'])
   })
 
+  test('a new session id with no session.end (a /branch) binds at the next turn', async ($, on) => {
+    let id = 'sess-1'
+    const w = world(on, { sessionId: () => id })
+    await start($)
+    w.next('TaskCreate', { result: { task: { id: '1', subject: 'Old' } }, text: '' })
+    await $.tool.call({ tool: 'TaskCreate', subject: 'Old', description: '' } as never)
+    await w.clock.advance(1_000)
+    id = 'sess-2'
+    await $.turn.start({ turnId: 't2', prompt: 'hi' } as never)
+    w.next('TaskCreate', { result: { task: { id: '1', subject: 'New' } }, text: '' })
+    await $.tool.call({ tool: 'TaskCreate', subject: 'New', description: '' } as never)
+    expect(column(await board($), 'Backlog')).toEqual(['New'])
+    await w.clock.advance(1_000)
+    expect(JSON.parse(w.files.get('/home/t/.claude/taskboard/sess-2.json') ?? '{}').tasks.map((t: any) => t.title)).toEqual(['New'])
+  })
+
+  test('a turn in the same session keeps its board', async ($, on) => {
+    const w = world(on)
+    await start($)
+    w.next('TaskCreate', { result: { task: { id: '1', subject: 'Kept' } }, text: '' })
+    await $.tool.call({ tool: 'TaskCreate', subject: 'Kept', description: '' } as never)
+    await $.turn.start({ turnId: 't2', prompt: 'hi' } as never)
+    expect(column(await board($), 'Backlog')).toEqual(['Kept'])
+  })
+
   test('a malformed board file is skipped field by field, and /board still answers', async ($, on) => {
     const files = new Map<string, string>()
     files.set(FILE, JSON.stringify({ version: 1, tasks: [{ key: 'k', column: 'progress' }, { key: 'ok', title: 'Fine\nline', column: 'done', status: 'completed', since: 1, agent: 'main', history: [{ bad: 1 }] }] }))
